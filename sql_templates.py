@@ -56,3 +56,15 @@ ships_sql_template ="""
         :engine
     )
 """
+
+ship_info_sql_template = """
+    SELECT
+        s.*,
+        w.*,
+        h.*,
+        e.*
+    FROM ships s
+    LEFT JOIN weapons w ON s.weapon=w.ROWID
+    LEFT JOIN hulls h ON s.hull=h.ROWID
+    LEFT JOIN engines e ON s.engine=e.ROWID;            
+"""
