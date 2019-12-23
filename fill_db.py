@@ -1,7 +1,7 @@
 from random import randint
 
-from models import hulls, weapons, engines, ships
-from sql_templates import all_tables_sql
+from .models import hulls, weapons, engines, ships
+from .sql_templates import all_tables_sql
 
 
 def restore_from_dump(dump_filename, cursor):

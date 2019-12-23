@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
 
-from fill_db import (
+from .fill_db import (
     is_initial_insert,
     restore_from_dump,
     insert_data,
@@ -9,13 +9,13 @@ from fill_db import (
     update_data
 )
 
-from models import (
+from .models import (
     weapons,
     hulls,
     engines,
     ships
 )
-from sql_templates import ship_info_sql_template
+from .sql_templates import ship_info_sql_template
 
 TABLES = (weapons, hulls, engines, ships)
 
@@ -69,7 +69,7 @@ def test_ship_params():
         for dump in dump_ship_params:
             if current.ship == dump.ship:
                 parts_diff = [
-                    '\t\t"{field}": expected {dump}, was {current}\n'.format(
+                    '\t"{field}": expected {dump}, was {current}\n'.format(
                         field=c_field,
                         dump=dump[c_field],
                         current=current[c_field]
