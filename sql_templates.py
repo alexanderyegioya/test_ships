@@ -1,70 +1,25 @@
-
-weapons_sql_template ="""
-    INSERT INTO weapons (
-        weapon,
-        reload_speed,
-        rotational_speed,
-        diameter,
-        power_volley,
-        count
-    ) VALUES (
-        :weapon,
-        :reload_speed,
-        :rotational_speed,
-        :diameter,
-        :power_volley,
-        :count
-    )
-"""
-
-hulls_sql_template ="""
-    INSERT INTO hulls (
-        hull,
-        armor,
-        type,
-        capacity
-    ) VALUES (
-        :hull,
-        :armor,
-        :type,
-        :capacity
-    )
-"""
-
-engines_sql_template ="""
-    INSERT INTO engines (
-        engine,
-        power,
-        type
-    ) VALUES (
-        :engine,
-        :power,
-        :type
-    )
-"""
-
-ships_sql_template ="""
-    INSERT INTO ships (
-        ship,
-        weapon,
-        hull,
-        engine
-    ) VALUES (
-        :ship,
-        :weapon,
-        :hull,
-        :engine
-    )
-"""
-
 ship_info_sql_template = """
     SELECT
-        s.*,
-        w.*,
-        h.*,
-        e.*
+        s.ship,
+        s.weapon,
+        s.hull,
+        s.engine,
+        w.reload_speed,
+        w.rotational_speed,
+        w.diameter,
+        w.power_volley,
+        w.count,
+        h.armor,
+        h.type,
+        h.capacity,
+        e.power,
+        e.type
     FROM ships s
     LEFT JOIN weapons w ON s.weapon=w.ROWID
     LEFT JOIN hulls h ON s.hull=h.ROWID
     LEFT JOIN engines e ON s.engine=e.ROWID;            
+"""
+
+all_tables_sql = """
+    SELECT name from sqlite_master where type= "table"
 """

@@ -1,4 +1,6 @@
 venv
-db
+db/dump*
+db/test*
+
 .idea
 __pycache__/

@@ -1,239 +1,184 @@
-import sqlite3
-import os
 from random import randint
-from collections import namedtuple
 
-from sql_templates import (
-    weapons_sql_template,
-    hulls_sql_template,
-    engines_sql_template,
-    ships_sql_template
-)
+from models import hulls, weapons, engines, ships
+from sql_templates import all_tables_sql
 
 
-def restore_db_from_dump(dump_filename, cursor):
-    with open(dump_filename) as f:
+def restore_from_dump(dump_filename, cursor):
+    with open(dump_filename, 'r') as f:
         sql = f.read()
         cursor.executescript(sql)
 
 
-DEFAULT_PATH = os.path.join(os.path.dirname(__file__), 'db/ships.db')
-
-TableDetails = namedtuple(
-    'TableDetails',
-    (
-        'table_name',
-        'fields',
-        'number_of_rows_to_insert',
-        'insert_data_sql_template',
-        'key_field'
-    )
-)
-
-weapons_table = TableDetails(
-    table_name='weapons',
-    fields=(
-        'weapon', 'reload_speed', 'rotational_speed',
-        'diameter', 'power_volley', 'count'
-    ),
-    number_of_rows_to_insert=20,
-    insert_data_sql_template=weapons_sql_template,
-    key_field='weapon',
-)
-
-hulls_table = TableDetails(
-    table_name='hulls',
-    fields=(
-        'hull', 'armor', 'type', 'capacity'
-    ),
-    number_of_rows_to_insert=5,
-    insert_data_sql_template=hulls_sql_template,
-    key_field='hull'
-)
-
-engines_table = TableDetails(
-    table_name='engines',
-    fields=(
-        'engine', 'power', 'type'
-    ),
-    number_of_rows_to_insert=6,
-    insert_data_sql_template=engines_sql_template,
-    key_field='engine'
-)
-
-ships_table = TableDetails(
-    table_name='ships',
-    fields=(
-        'ship', 'weapon', 'hull', 'engine'
-    ),
-    number_of_rows_to_insert=201,
-    insert_data_sql_template=ships_sql_template,
-    key_field='ship'
-)
-
 TABLES = (
-    hulls_table,
-    weapons_table,
-    engines_table,
-    ships_table,
+    hulls,
+    weapons,
+    engines,
+    ships,
 )
-
-
-def dict_factory(cursor, row):
-    d = {}
-    for idx, col in enumerate(cursor.description):
-        d[col[0]] = row[idx]
-    return d
 
 
 def make_dump(conn):
     conn.row_factory = None
     with open('db/dump.sql', 'w') as f:
+        f.truncate()
         for line in conn.iterdump():
             f.write('%s\n' % line)
 
 
-def db_connect(db_path=DEFAULT_PATH):
-    conn = sqlite3.connect(db_path)
-    return conn
-
-
-def update_key_value(row, table_details):
-    row[1].update(
+def update_key_field(row_number, row, key_field):
+    row.update(
         {
-            table_details.fields[0]: '{item_name}-{order_number}'.format(
-                item_name=table_details.fields[0].capitalize(),
-                order_number=row[0]
+            key_field: '{item_name}-{order_number}'.format(
+                item_name=key_field.capitalize(),
+                order_number=row_number
             )
         }
     )
 
 
-def generate_params_for_query(table_details, initial_insert):
-    excluded_fields = []
-
-    if not initial_insert:
-        excluded_fields = [
-            t for t in table_details.fields if (
-                    len(t) % randint(2, 3) == 0
-            )
+def generate_values_for_query(
+        table_details,
+        number_of_rows_to_insert,
+        key_field,
+        excluded_fields,
+        is_update_query
+):
+    if is_update_query:
+        table_data = [
+            {
+                str(field.name): randint(
+                    i, 100
+                ) for field in table_details.columns if (
+                    len(str(field.name)) % randint(2, 3) == 0 and
+                    str(field.name) not in excluded_fields
+                )
+            } for i in range(1, number_of_rows_to_insert)
         ]
-        excluded_fields.append(table_details.key_field)
+    else:
+        table_data = [
+            {
+                str(field.name): randint(
+                    i, 100
+                ) for field in table_details.columns if (
+                    str(field.name) not in excluded_fields
+                )
+            } for i in range(1, number_of_rows_to_insert)
+        ]
 
-    excluded_fields.append(table_details.key_field)
-    excluded_fields = set(excluded_fields)
-
-    table_data = [
-        {
-            field: randint(
-                i, 100
-            ) for field in table_details.fields if field not in excluded_fields
-        } for i in range(1, table_details.number_of_rows_to_insert)
-    ]
-
-    for t in enumerate(table_data):
-        update_key_value(t, table_details)
+        for row_number, row in enumerate(table_data):
+            update_key_field(row_number, row, key_field)
 
     return tuple(table_data)
 
 
-def generate_params_for_ships_query(table_details):
+def generate_values_for_ships_query(
+        number_rows_to_insert,
+        key_field,
+        is_update_query
+):
     table_data = []
 
-    for i in range(1, table_details.number_of_rows_to_insert):
-        f = {}
-        for field in table_details.fields:
-            if 'weapon' in field:
-                f['weapon'] = randint(1, 19)
-            if 'hull' in field:
-                f['hull'] = randint(1, 4)
-            if 'engine' in field:
-                f['engine'] = randint(1, 5)
+    values_range = {
+        'weapon': (1, 19),
+        'hull': (1, 4),
+        'engine': (1, 5)
+    }
 
-        table_data.append(f)
+    if is_update_query:
+        for i in range(1, number_rows_to_insert):
+            f = {}
+            field = list(values_range.keys())[randint(0, 2)]
+            f[field] = randint(*values_range[field])
+            table_data.append(f)
+    else:
+        for i in range(1, number_rows_to_insert):
+            f = {}
+            for v in values_range:
+                f[v] = randint(*values_range[v])
+            table_data.append(f)
 
-    for t in enumerate(table_data):
-        update_key_value(t, table_details)
+        for row_number, row in enumerate(table_data):
+            update_key_field(row_number, row, key_field)
 
     return tuple(table_data)
 
 
-def fill_db_with_data(table_details, conn, cursor, initial_insert):
-    # cursor.execute('DELETE FROM {table_name}'.format(
-    #     table_name=table_details.table_name)
-    # )
-    # conn.commit()
+def get_key_field(table_details):
+    return table_details.c[
+        table_details.name.rstrip('s')
+    ].name
 
-    if table_details.table_name == 'ships':
-        params = generate_params_for_ships_query(table_details)
-        cursor.executemany(table_details.insert_data_sql_template, params)
-        conn.commit()
+
+def insert_data(
+        table_details,
+        conn,
+        number_of_rows_to_insert
+):
+    key_field = get_key_field(table_details)
+    excluded_fields = [key_field, 'id']
+
+    if table_details.name == 'ships':
+        values = generate_values_for_ships_query(
+            number_of_rows_to_insert,
+            key_field,
+            is_update_query=False
+        )
     else:
-        params = generate_params_for_query(table_details, initial_insert)
-        processed_params = {}
-        fields = tuple(params[0].keys())
-        values = tuple([tuple(i.values()) for i in params])
+        values = generate_values_for_query(
+            table_details,
+            number_of_rows_to_insert,
+            key_field,
+            excluded_fields=excluded_fields,
+            is_update_query=False
+        )
 
-        for i in enumerate(values):
-            processed_params['fields'] = str(fields)
-            processed_params['values'] = str(values[i[0]])
-
-            sql_template = """
-                    INSERT INTO {table_name} 
-                        {fields}
-                    VALUES 
-                        {values}
-                    """.format(
-                table_name=table_details.table_name,
-                **processed_params
-            )
-            cursor.execute(sql_template)
-            conn.commit()
+    ins = table_details.insert()
+    conn.execute(ins, values)
 
 
-def update_db_data(table_details, conn, cursor, initial_insert):
-    if table_details.table_name == 'ships':
-        params = generate_params_for_ships_query(table_details)
-        cursor.executemany(table_details.insert_data_sql_template, params)
-        conn.commit()
+def update_data(
+        table_details,
+        conn,
+        number_of_rows_to_insert
+):
+    key_field = get_key_field(table_details)
+    excluded_fields = [key_field, 'id']
+
+    if table_details.name == 'ships':
+        values = generate_values_for_ships_query(
+            number_of_rows_to_insert,
+            key_field,
+            is_update_query=True
+        )
     else:
-        params = generate_params_for_query(table_details, initial_insert)
-        processed_params = {}
-        fields = tuple(params[0].keys())
-        values = tuple([tuple(i.values()) for i in params])
+        values = generate_values_for_query(
+            table_details,
+            number_of_rows_to_insert,
+            key_field,
+            excluded_fields,
+            is_update_query=True
+        )
 
-        for i in enumerate(values):
-            processed_params['fields'] = fields
-            processed_params['values'] = values[i[0]]
-
-            s = ''
-            for i in enumerate(processed_params['fields']):
-                b = '{field} = {value}, '.format(
-                    field=processed_params['fields'][i[0]],
-                    value=processed_params['values'][i[0]]
-                )
-                s += b
-
-            sql_template = """
-                    UPDATE {table_name} 
-                    SET """.format(
-                table_name=table_details.table_name,
-            )
-            sql_template += s
-            cursor.execute(sql_template)
-            conn.commit()
-
-# conn = db_connect()
-# cursor = conn.cursor()
+    for row_number, v in enumerate(values):
+        if v:
+            search = "%{}".format(row_number)
+            upd = table_details.update().where(
+                table_details.c[
+                    table_details.name.rstrip('s')
+                ].endswith(search)
+            ).values(**v)
+            conn.execute(upd)
 
 
 def is_initial_insert(cursor):
-    cursor.execute('SELECT name from sqlite_master where type= "table"')
-    all_tables = cursor.fetchall()
+    all_tables = cursor.execute(
+        all_tables_sql
+    ).fetchall()
     try:
         all_tables = set([i[0] for i in all_tables])
     except KeyError:
         return False
     return bool(
-        set([i.table_name for i in TABLES]) - all_tables
+        set([i.name for i in TABLES]) - all_tables
     )
